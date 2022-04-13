@@ -193,23 +193,23 @@ asset operator_for_all identified by fa_oaddr fa_oowner to big_map {
 //----------------------------------------------------------------------------
 
 event balance_event {
-  pkh : address;
-  token_id : nat;
-  amount: nat;
-}
+  be_pkh : address;
+  be_token_id : nat;
+  be_amount: nat;
+} as ((pkh, token_id, amount))
 
 event mint_event {
-  receiver : address;
-  token_id : nat;
-  amount: nat;
-}
+  me_receiver : address;
+  me_token_id : nat;
+  me_amount: nat;
+} as ((pkh, token_id, amount))
 
 event transfer_event {
-  %from : address;
-  %to : address;
-  token_id : nat;
-  amount: nat;
-}
+  te_from : address;
+  te_to : address;
+  te_token_id : nat;
+  te_amount: nat;
+} as ((%from, %to, token_id, amount))
 
 //----------------------------------------------------------------------------
 // Operators
@@ -492,20 +492,22 @@ entry %transfer (txs : list<address * list<transfer_destination>>) {
         (* set token ownership *)
         var tokenid = td.token_id_dest;
         var amount_ = ledger[(tokenid, %from)].lamount;
+        var new_src_amount = 0;
         if td.token_amount_dest > amount_ then
           fail(FA2_INSUFFICIENT_BALANCE)
         else if td.token_amount_dest = amount_ then
           ledger.remove((tokenid, %from))
-        else
+        else begin
           ledger.update((tokenid, %from), { lamount -= td.token_amount_dest });
+          new_src_amount := ledger[(tokenid, %from)].lamount
+        end;
         ledger.addupdate((tokenid, td.to_dest), { lamount += td.token_amount_dest });
 
-        emit<transfer_event>({ %from = %from; %to = td.to_dest; token_id = tokenid; amount = td.token_amount_dest});
+        emit<transfer_event>({ te_from = %from; te_to = td.to_dest; te_token_id = tokenid; te_amount = td.token_amount_dest});
 
-        var new_src_amount = ledger[(tokenid, %from)].lamount;
-        emit<balance_event>({ pkh = %from; token_id = tokenid; amount = new_src_amount});
+        emit<balance_event>({ be_pkh = %from; be_token_id = tokenid; be_amount = new_src_amount});
         var new_dst_amount = ledger[(tokenid, td.to_dest)].lamount;
-        emit<balance_event>({ pkh = td.to_dest; token_id = tokenid; amount = new_dst_amount})
+        emit<balance_event>({ be_pkh = td.to_dest; be_token_id = tokenid; be_amount = new_dst_amount})
       end done;
     done
   }
@@ -540,10 +542,10 @@ entry mint (itokenid : nat, iowner : address, iamount : nat, itokenMetadata: opt
     var default_map : map<string, bytes> = [("", 0x)];
     token_metadata.add({ftoken_metadata = itokenid; token_id = itokenid; token_info = match itokenMetadata with | some(v) -> v | none -> default_map end});
     ledger.addupdate((itokenid, iowner), { lamount += iamount });
-    emit<mint_event>({ receiver = iowner; token_id = itokenid; amount = iamount});
+    emit<mint_event>({ me_receiver = iowner; me_token_id = itokenid; me_amount = iamount});
 
     var new_amount = ledger[(itokenid, iowner)].lamount;
-    emit<balance_event>({ pkh = iowner; token_id = itokenid; amount = new_amount})
+    emit<balance_event>({ be_pkh = iowner; be_token_id = itokenid; be_amount = new_amount})
   }
 }
 

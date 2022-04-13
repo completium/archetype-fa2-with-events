@@ -23,8 +23,8 @@ const mockup_mode = true;
 let fa2;
 
 // accounts
-const owner  = getAccount(mockup_mode ? 'alice'      : 'fa2-events-owner');
-const user   = getAccount(mockup_mode ? 'bob'        : 'fa2-events-user');
+const owner = getAccount(mockup_mode ? 'alice' : 'fa2-events-owner');
+const user  = getAccount(mockup_mode ? 'bob'   : 'fa2-events-user');
 
 //set endpointhead
 setEndpoint(mockup_mode ? 'mockup' : 'https://ithacanet.ecadinfra.com');

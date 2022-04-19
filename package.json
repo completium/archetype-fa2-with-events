@@ -4,7 +4,10 @@
   "scripts": {
     "test": "mocha --timeout 0 --slow 99999999999999999 ./tests/*.js",
     "test-events": "mocha --timeout 0 --slow 99999999999999999 ./tests/01-events.js",
-    "deploy": "mocha --timeout 0 --slow 99999999999999999 ./scripts/deploy.js"
+    "process": "mocha --timeout 0 --slow 99999999999999999 ./scripts/process.js",
+    "import": "./scripts/import.sh",
+    "deploy": "mocha --timeout 0 --slow 99999999999999999 ./scripts/deploy.js",
+    "completium-init": "completium-cli init"
   },
   "dependencies": {
     "@completium/completium-cli": "^0.3.35",

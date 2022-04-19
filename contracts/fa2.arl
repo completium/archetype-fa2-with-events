@@ -505,11 +505,12 @@ entry %transfer (txs : list<address * list<transfer_destination>>) {
 
         var new_dst_amount = ledger[(tokenid, td.to_dest)].lamount;
 
-        emit<balance_event>({ be_pkh = td.to_dest; be_token_id = tokenid; be_amount = new_dst_amount});
+        emit<transfer_event>({ te_from = %from; te_to = td.to_dest; te_token_id = tokenid; te_amount = td.token_amount_dest});
         emit<balance_event>({ be_pkh = %from; be_token_id = tokenid; be_amount = new_src_amount});
-        emit<transfer_event>({ te_from = %from; te_to = td.to_dest; te_token_id = tokenid; te_amount = td.token_amount_dest})
+        emit<balance_event>({ be_pkh = td.to_dest; be_token_id = tokenid; be_amount = new_dst_amount});
       end done;
-    done
+    done;
+    operations := reverse(operations)
   }
 }
 

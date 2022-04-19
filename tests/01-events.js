@@ -64,7 +64,7 @@ describe('Transfering', async () => {
   it('Transfer', async () => {
       await fa2.transfer({
           arg: {
-              txs: [[owner.pkh, [[user.pkh, tokenId, 100]]]],
+              txs: [[owner.pkh, [[user.pkh, tokenId, 100]]], [owner.pkh, [[user.pkh, tokenId, 200]]]],
           },
           as: owner.pkh,
       });

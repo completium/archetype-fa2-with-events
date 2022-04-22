@@ -17,14 +17,14 @@ then, init local project:
 npm i
 ```
 
-## Import account in completium
+## Import test accounts in completium
 
 In order to import `owner` and `user` accounts from Ithaca (testnet) faucets:
 ```bash
 npm run import
 ```
 
-## Run mint and transfer example
+## Deploy, run mint and transfer example
 
 To deploy the FA2, call `mint` and `transfer` entrypoints, run the following:
 ```bash

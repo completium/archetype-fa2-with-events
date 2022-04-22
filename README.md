@@ -2,27 +2,32 @@
 
 # Install
 
+If not already installed, install [completium-cli] with:
+```bash
+npm i -g @completium/completium-cli
+```
+
+then, init completium with:
+```
+completium-cli init
+```
+
+then, init local project:
 ```sh
 npm i
 ```
 
-## Init completium
-just only once
-```sh
-npm run completium-init
-```
-
 ## Import account in completium
+
+In order to import `owner` and `user` accounts from Ithaca (testnet) faucets:
 ```sh
 npm run import
 ```
 
-## Run minting + transferring example in testnet
+## Run mint and transfer example
+
+To call `mint` and `transfer` entrypoints, run the following:
 ```sh
 npm run process
 ```
 
-## Run tests
-```sh
-npm test
-```

@@ -10,7 +10,7 @@
     "completium-init": "completium-cli init"
   },
   "dependencies": {
-    "@completium/completium-cli": "^0.3.35",
+    "@completium/completium-cli": "^0.3.36",
     "mocha": "^9.2.0"
   }
 }

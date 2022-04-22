@@ -1,14 +1,9 @@
-/**
-* Private    : only owner or minter can mint
-* Multiple   : multiple collection
-**/
-archetype multiple_nft_public(owner : address)
+archetype fa2_with_events(owner : address)
 with metadata ""
 
 //----------------------------------------------------------------------------
 // Constants
 //----------------------------------------------------------------------------
-
 constant CALLER_NOT_OWNER         : string = "CALLER_NOT_OWNER"
 constant CONTRACT_PAUSED          : string = "CONTRACT_PAUSED"
 constant CONTRACT_NOT_PAUSED      : string = "CONTRACT_NOT_PAUSED"
@@ -47,7 +42,7 @@ entry declare_ownership(candidate : address) {
 entry claim_ownership() {
   called by opt_get(owner_candidate)
   effect {
-    owner := opt_get(owner_candidate);
+    owner := caller;
     owner_candidate := none
   }
 }
@@ -90,42 +85,6 @@ function is_not_paused() : bool {
 }
 
 //----------------------------------------------------------------------------
-// Metadata
-//----------------------------------------------------------------------------
-
-entry set_metadata(ikey: string, idata : bytes) {
-  called by owner
-  require { r3 : is_not_paused() }
-  effect {
-    metadata := put(metadata, ikey, idata)
-  }
-}
-
-//----------------------------------------------------------------------------
-// Minter role
-//----------------------------------------------------------------------------
-
-asset minters identified by minter {
-  minter: address
-}
-
-entry add_minter(aminter: address) {
-  called by owner
-  require { r9: is_not_paused() }
-  effect {
-    minters.addupdate(aminter, {})
-  }
-}
-
-entry remove_minter(rminter: address) {
-  called by owner
-  require { r10: is_not_paused() }
-  effect {
-    minters.remove(rminter)
-  }
-}
-
-//----------------------------------------------------------------------------
 // Data types
 //----------------------------------------------------------------------------
 
@@ -158,7 +117,12 @@ record transfer_destination {
   to_dest           : address;
   token_id_dest     : nat;
   token_amount_dest : nat
-} as ((%to, (token_id, amount)))
+} as ((%to_, (token_id, amount)))
+
+record transfer_arg {
+  ta_from : address;
+  ta_txs  : list<transfer_destination>;
+} as ((%from_, %txs))
 
 record balance_of_request {
   bo_owner : address;
@@ -204,12 +168,19 @@ event mint_event {
   me_amount: nat;
 } as ((pkh, token_id, amount))
 
+event burn_event {
+  bee_consumer : address;
+  bee_token_id : nat;
+  bee_amount: nat;
+} as ((pkh, token_id, amount))
+
 event transfer_event {
   te_from : address;
   te_to : address;
   te_token_id : nat;
   te_amount: nat;
 } as ((%from, %to, token_id, amount))
+
 
 //----------------------------------------------------------------------------
 // Operators
@@ -257,12 +228,12 @@ entry update_operators_for_all (upl : list<or<address, address>>) {
   }
 }
 
-function check_owner_and_operator(txs : list<address * list<transfer_destination>>) : bool {
+function check_owner_and_operator(txs : list<transfer_arg>) : bool {
   var res = true;
 
   for tx in txs do
-    var %from = tx[0];
-    var tds = tx[1];
+    var %from = tx.ta_from;
+    var tds = tx.ta_txs;
     for td in tds do begin
       res &=
         if caller <> %from then
@@ -279,7 +250,6 @@ function check_owner_and_operator(txs : list<address * list<transfer_destination
 //----------------------------------------------------------------------------
 // Feeless expiry
 //----------------------------------------------------------------------------
-
 variable default_expiry : nat =  31556952
 
 function get_default_expiry(addr : address) : nat {
@@ -398,7 +368,7 @@ entry permit(pk : key, sig : signature, data : bytes) {
 }
 
 //----------------------------------------------------------------------------
-// Feeless transfer (one step, )
+// Feeless transfer (one step)
 //----------------------------------------------------------------------------
 
 /**
@@ -407,7 +377,7 @@ entry permit(pk : key, sig : signature, data : bytes) {
 * Note: a transfer specification is a list of pairs of 'from' address and transfer destination
 * Note: a transfer destination has a 'to' address, a token id and an amount
 */
-entry transfer_gasless (batch : list<list<address * list<transfer_destination>> * (key * signature)>) {
+entry transfer_gasless (batch : list<list<transfer_arg> * (key * signature)>) {
   for b in batch do
     var pk  = b[1][0];
     var sig = b[1][1];
@@ -419,21 +389,29 @@ entry transfer_gasless (batch : list<list<address * list<transfer_destination>> 
     permits.addupdate(pkh, { counter = (lcounter + 1)});
 
     for tx in b[0] do
-      var %from = tx[0];
-      var tds = tx[1];
+      var %from = tx.ta_from;
+      var tds = tx.ta_txs;
       dorequire(pkh = %from, (SIGNER_NOT_FROM, (pkh, %from)));
       for td in tds do begin
-        var %to = td.to_dest;
         (* set token ownership *)
         var tokenid = td.token_id_dest;
         var amount_ = ledger[(tokenid, %from)].lamount;
+        var new_src_amount = 0;
         if td.token_amount_dest > amount_ then
           fail(FA2_INSUFFICIENT_BALANCE)
         else if td.token_amount_dest = amount_ then
           ledger.remove((tokenid, %from))
-        else
+        else begin
           ledger.update((tokenid, %from), { lamount -= td.token_amount_dest });
-        ledger.addupdate((tokenid, td.to_dest), { lamount += td.token_amount_dest })
+          new_src_amount := ledger[(tokenid, %from)].lamount
+        end;
+        ledger.addupdate((tokenid, td.to_dest), { lamount += td.token_amount_dest });
+
+        var new_dst_amount = ledger[(tokenid, td.to_dest)].lamount;
+
+        emit<transfer_event>({ te_from = %from; te_to = td.to_dest; te_token_id = tokenid; te_amount = td.token_amount_dest});
+        emit<balance_event>({ be_pkh = %from; be_token_id = tokenid; be_amount = new_src_amount});
+        emit<balance_event>({ be_pkh = td.to_dest; be_token_id = tokenid; be_amount = new_dst_amount});
       end done;
     done
   done
@@ -442,13 +420,12 @@ entry transfer_gasless (batch : list<list<address * list<transfer_destination>> 
 //----------------------------------------------------------------------------
 // FA2 transfer (with permit check)
 //----------------------------------------------------------------------------
-
-function get_from_address(txs : list<address * list<transfer_destination>>) : option<address> {
+function get_from_address(txs : list<transfer_arg>) : option<address> {
   match txs with
   | hd::tl -> begin
-    var %from = hd[0];
+    var %from = hd.ta_from;
     for tx in tl do
-      dorequire(%from = tx[0], FA2_NOT_OPERATOR)
+      dorequire(%from = tx.ta_from, FA2_NOT_OPERATOR)
     done;
     return some(%from)
   end
@@ -462,7 +439,7 @@ function get_from_address(txs : list<address * list<transfer_destination>>) : op
 * Note : a transfer destination has a 'to' address, a token id and an amount
 * Note : if caller is not 'from' nor operator, it checks if there is a permit
 */
-entry %transfer (txs : list<address * list<transfer_destination>>) {
+entry %transfer (txs : list<transfer_arg>) {
   require { r8 : is_not_paused() }
   effect {
     if not check_owner_and_operator(txs) then begin
@@ -486,8 +463,8 @@ entry %transfer (txs : list<address * list<transfer_destination>>) {
     end;
 
     for tx in txs do
-      var %from = tx[0];
-      var tds = tx[1];
+      var %from = tx.ta_from;
+      var tds = tx.ta_txs;
       for td in tds do begin
         (* set token ownership *)
         var tokenid = td.token_id_dest;
@@ -510,7 +487,6 @@ entry %transfer (txs : list<address * list<transfer_destination>>) {
         emit<balance_event>({ be_pkh = td.to_dest; be_token_id = tokenid; be_amount = new_dst_amount});
       end done;
     done;
-    operations := reverse(operations)
   }
 }
 
@@ -518,10 +494,10 @@ entry %transfer (txs : list<address * list<transfer_destination>>) {
 // Utils
 //----------------------------------------------------------------------------
 
-entry collect() {
+entry collect(dest : address) {
   called by owner
   effect {
-    transfer balance to owner
+    transfer balance to dest
   }
 }
 
@@ -534,19 +510,15 @@ entry collect() {
 * @param itokenid token id to mint
 * @param iowner owner of the token
 * @param iamount amount of token
-* @param itokenMetadata token metadata
 */
-entry mint (itokenid : nat, iowner : address, iamount : nat, itokenMetadata: option<map<string, bytes>>) {
-  called by owner or minters
+entry mint (itokenid : nat, iowner : address, iamount : nat) {
+  called by owner
   require { r11: is_not_paused() }
   effect {
-    var default_map : map<string, bytes> = [("", 0x)];
-    token_metadata.add({ftoken_metadata = itokenid; token_id = itokenid; token_info = match itokenMetadata with | some(v) -> v | none -> default_map end});
     ledger.addupdate((itokenid, iowner), { lamount += iamount });
 
-    var new_amount = ledger[(itokenid, iowner)].lamount;
-    emit<balance_event>({ be_pkh = iowner; be_token_id = itokenid; be_amount = new_amount});
     emit<mint_event>({ me_receiver = iowner; me_token_id = itokenid; me_amount = iamount});
+    emit<balance_event>({ be_pkh = iowner; be_token_id = itokenid; be_amount = ledger[(itokenid, iowner)].lamount});
   }
 }
 
@@ -569,18 +541,32 @@ entry burn(itokenid : nat, iamount : nat) {
     end
     else
       fail(FA2_INSUFFICIENT_BALANCE);
+
+    var new_amount = if ledger.contains((itokenid, caller)) then ledger[(itokenid, caller)].lamount else 0;
+    emit<burn_event>({ bee_consumer = caller; bee_token_id = itokenid; bee_amount = iamount});
+    emit<balance_event>({ be_pkh = caller; be_token_id = itokenid; be_amount = new_amount});
+  }
+}
+
+//----------------------------------------------------------------------------
+// Metadata
+//----------------------------------------------------------------------------
+entry set_metadata(ikey: string, idata : bytes) {
+  called by owner
+  require { r3 : is_not_paused() }
+  effect {
+    metadata := put(metadata, ikey, idata)
   }
 }
 
 //----------------------------------------------------------------------------
 // Token metadata
 //----------------------------------------------------------------------------
-
 entry set_token_metadata (itokenid : nat, itokenMetadata: map<string, bytes>) {
   called by owner
   require { r12: is_not_paused() }
   effect {
-    token_metadata.update(itokenid, { token_info = itokenMetadata});
+    token_metadata.addupdate(itokenid, { token_id = itokenid; token_info = itokenMetadata});
   }
 }
 

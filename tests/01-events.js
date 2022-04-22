@@ -1,23 +1,13 @@
 const {
   deploy,
   getAccount,
-  getValueFromBigMap,
   setQuiet,
-  expectToThrow,
-  exprMichelineToJson,
-  setMockupNow,
-  getEndpoint,
-  isMockup,
   setEndpoint
 } = require('@completium/completium-cli');
-const { errors, mkTransferPermit, mkTransferGaslessArgs } = require('./utils');
-const assert = require('assert');
 
 require('mocha/package.json');
 
-setQuiet('true');
-
-const mockup_mode = true;
+const mockup_mode = false;
 
 // contracts
 let fa2;
@@ -25,6 +15,8 @@ let fa2;
 // accounts
 const owner = getAccount(mockup_mode ? 'alice' : 'fa2-events-owner');
 const user  = getAccount(mockup_mode ? 'bob'   : 'fa2-events-user');
+
+setQuiet(mockup_mode);
 
 //set endpointhead
 setEndpoint(mockup_mode ? 'mockup' : 'https://ithacanet.ecadinfra.com');
@@ -53,7 +45,6 @@ describe('Minting', async () => {
               itokenid: tokenId,
               iowner: owner.pkh,
               iamount: amount,
-              itokenMetadata: null
           },
           as: owner.pkh,
       });
@@ -65,6 +56,19 @@ describe('Transfering', async () => {
       await fa2.transfer({
           arg: {
               txs: [[owner.pkh, [[user.pkh, tokenId, 100]]], [owner.pkh, [[user.pkh, tokenId, 200]]]],
+          },
+          as: owner.pkh,
+      });
+  });
+});
+
+
+describe('Burning', async () => {
+  it('Burn', async () => {
+      await fa2.burn({
+          arg: {
+              itokenid: tokenId,
+              iamount: 300,
           },
           as: owner.pkh,
       });

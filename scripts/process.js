@@ -7,8 +7,6 @@ const {
 
 require('mocha/package.json');
 
-setQuiet('true');
-
 // contracts
 let fa2;
 
@@ -18,6 +16,7 @@ const user  = getAccount('fa2-events-user');
 
 //set endpointhead
 setEndpoint('https://ithacanet.ecadinfra.com');
+setQuiet(false);
 
 const amount = 1000;
 let tokenId = 0;
@@ -54,7 +53,20 @@ describe('Transfering', async () => {
   it('Transfer', async () => {
       await fa2.transfer({
           arg: {
-              txs: [[owner.pkh, [[user.pkh, tokenId, 100]]]],
+              txs: [[owner.pkh, [[user.pkh, tokenId, 500]]]],
+          },
+          as: owner.pkh,
+      });
+  });
+});
+
+
+describe('Burning', async () => {
+  it('Burn', async () => {
+      await fa2.burn({
+          arg: {
+              itokenid: tokenId,
+              iamount: 200,
           },
           as: owner.pkh,
       });

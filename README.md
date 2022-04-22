@@ -1,6 +1,6 @@
 # archetype-fa2-with-events
 
-# Install
+## Install
 
 If not already installed, install [completium-cli](https://completium.com/docs/cli/) with:
 ```bash
@@ -26,8 +26,10 @@ npm run import
 
 ## Run mint and transfer example
 
-To call `mint` and `transfer` entrypoints, run the following:
+To deploy the FA2, call `mint` and `transfer` entrypoints, run the following:
 ```bash
 npm run process
 ```
+
+See [scritps](./scripts) folder for more information.
 
